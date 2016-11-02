@@ -17,10 +17,48 @@ Sub CreateOnlineInstock()
 ' ###########      ~ Top 25 Offline (Sum of SKUs in Top 25 offline)       ###########
 ' ###########                                                             ###########
 ' ########### File directory structure is a follows:                      ###########
-' ########### <directoryLoc>           = location of all files            ###########
+' ########### - <directoryLoc>         = location of all files & folders  ###########
 ' ###########      + <PSRfolder>       = unprocessed PSR csv files        ###########
 ' ###########      + <archiveFolder>   = processed csv files              ###########
 ' ###########      + <top25Folder>     = Top 25 csv for each region       ###########
+' ###########                                                             ###########
+' ########### Metrics are defined and calculated as follows:              ###########
+' ###########  [Style-Color Sizes]                                        ###########
+' ###########   Definition:  Total number of sizes possible for all       ###########
+' ###########                style-color SKUs/colorways.                  ###########
+' ###########   Calculation: For each item where:                         ###########
+' ###########                - VARIATION MASTER ONLINE = YES              ###########
+' ###########                Sum(# SIZES FOR COLOR)                       ###########
+' ###########                                                             ###########
+' ###########  [Overall Instock %]                                        ###########
+' ###########   Definition:  The total number of sizes salable divided by ###########
+' ###########                the Style-Color Sizes.                       ###########
+' ###########   Calculation: For each item where:                         ###########
+' ###########                - VARIATION MASTER ONLINE = YES              ###########
+' ###########                (Sum(# SIZES FOR COLOR ORDERABLE)            ###########
+' ###########                 Less: Sum(# SIZES FOR COLOR BISN ENABLED))  ###########
+' ###########                Divided by: Sum(# SIZES FOR COLOR)           ###########
+' ###########                                                             ###########
+' ###########  [Top 25 Instock %]                                         ###########
+' ###########   Definition:  For a region's Top 25 SKUs, the total number ###########
+' ###########                of sizes salable divided by the total number ###########
+' ###########                of style-color SKUs possible.                ###########
+' ###########   Calculation: For each item where:                         ###########
+' ###########                - VARIATION MASTER ONLINE = YES              ###########
+' ###########                - COLOR SKU is in region's Top 25 SKUs       ###########
+' ###########                (Sum(# SIZES FOR COLOR ORDERABLE)            ###########
+' ###########                 Less: Sum(# SIZES FOR COLOR BISN ENABLED))  ###########
+' ###########                Divided by: Sum(# SIZES FOR COLOR)           ###########
+' ###########                                                             ###########
+' ###########  [Top 25 Offline]                                           ###########
+' ###########   Definition:  A count of a region's Top 25 style-color     ###########
+' ###########                SKUs/colorways that are either offline or    ###########
+' ###########                not listed in the PSR.                       ###########
+' ###########   Calculation: Count of each item where:                    ###########
+' ###########                - VARIATION MASTER ONLINE = YES              ###########
+' ###########                - # SIZES FOR COLOR ORDERABLE Less: # SIZES  ###########
+' ###########                  FOR COLOR BISN ENABLED > 0                 ###########
+' ###########                - COLOR SKU is in region's Top 25 SKUs       ###########
 ' ###########                                                             ###########
 ' ###################################################################################
 ' ###################################################################################
@@ -40,7 +78,7 @@ Sub CreateOnlineInstock()
   Set top25Sheet = Sheets("Top 25")
   Set dataSheet = Sheets("Data")
   Set PSRsheet = Sheets("PSR")
-    
+
   Application.ScreenUpdating = False
   Application.DisplayAlerts = False
 
@@ -54,7 +92,7 @@ Sub CreateOnlineInstock()
       ' End If
   Next
   Set ws = Nothing
-  
+
   '#### Specify regions to be included in report (via an array)
   filePath = directoryLoc & top25Folder & Application.PathSeparator & top25csv
   With top25Sheet.QueryTables.Add(Connection:="TEXT;" & filePath, Destination:=top25Sheet.Range("A1"))
@@ -78,9 +116,9 @@ Sub CreateOnlineInstock()
     filePath = directoryLoc & PSRfolder & Application.PathSeparator & PSRnames(i)
     PSRregion = Mid(PSRnames(i), 25, 2) 'region of PSR (from filename)
     PSRdate = DateSerial(Mid(PSRnames(i), 32, 4), Mid(PSRnames(i), 30, 2), Mid(PSRnames(i), 28, 2)) 'date of PSR (from filename)
-    
+
     inFocusRegions = Filter(focusRegions, PSRregion)
-    If UBound(inFocusRegions) < 0 Then 
+    If UBound(inFocusRegions) < 0 Then
       ' ### Skip processing / do nothing ###
     Else
       '### Import each report ###
@@ -148,7 +186,7 @@ Sub CreateOnlineInstock()
         .Offset(0, 3).Value = (sizesOrderable - sizesBisn) / sizesForColor
         .Offset(0, 4).Value = (topSizesOrderable - topSizesBisn) / topSizesForColor
         .Offset(0, 5).Value = topOfflineCount
-      End With      
+      End With
     End If
     '*** Move PSR report to archiveFolder ***
     ' Name filePath As directoryLoc & archiveFolder & Application.PathSeparator & PSRnames(i)
