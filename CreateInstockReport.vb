@@ -10,18 +10,43 @@ Sub CreateOnlineInstock()
 ' ########### SUMMARY                                                     ###########
 ' ########### -------                                                     ###########
 ' ########### From a directory of ProductStatusReports calculate          ###########
-' ########### the following for each region:                              ###########
+' ########### the following for each Focus Region:                        ###########
 ' ###########      ~ In-Stock % (Sum of # Sizes Salable / Sum of Sizes)   ###########
 ' ###########      ~ Total Sizes (Sum of Sizes Salable)                   ###########
 ' ###########      ~ Top 25 In-Stock (Same as above, but for Top 25 SKUs) ###########
 ' ###########      ~ Top 25 Offline (Sum of SKUs in Top 25 offline)       ###########
 ' ###########                                                             ###########
+' ########### ---------------------------                                 ###########
+' ########### FOCUS REGIONS & TOP 25 SKUS                                 ###########
+' ########### ---------------------------                                 ###########
+' ########### Focus Regions are defined within the top25Csv file as       ###########
+' ########### header items in the first row. The region should match the  ###########
+' ########### region as indicated in the PSR filenaming convention        ###########
+' ########### (e.g., for Japan, use header "jp" -- without quotes-- to    ###########
+' ########### process files for ProductStatusReportFeed_jp_........csv).  ###########
+' ########### Every Focus Region should additionally have a Top 25 SKU    ###########
+' ########### list. This should be in cells 2 - 26 under the region's     ###########
+' ########### heading in the top25Csv file and be the style-color SKU.    ###########
+' ########### This list may be updated at any time, submitted by the      ###########
+' ########### region team.                                                ###########
+' ###########                                                             ###########
+' ########### ---------------                                             ###########
+' ########### WEEK DEFINITION                                             ###########
+' ########### ---------------                                             ###########
+' ########### Weeks begin on Monday and end on Sunday.                    ###########
+' ###########                                                             ###########
+' ########### ------------------------                                    ###########
+' ########### FILE DIRECTORY STRUCTURE                                    ###########
+' ########### ------------------------                                    ###########
 ' ########### File directory structure is a follows:                      ###########
 ' ########### - <directoryLoc>         = location of all files & folders  ###########
 ' ###########      + <PSRfolder>       = unprocessed PSR csv files        ###########
 ' ###########      + <archiveFolder>   = processed csv files              ###########
 ' ###########      + <top25Folder>     = Top 25 csv for each region       ###########
 ' ###########                                                             ###########
+' ########### ---------------------                                       ###########
+' ########### DEFINITION OF METRICS                                       ###########
+' ########### ---------------------                                       ###########
 ' ########### Metrics are defined and calculated as follows:              ###########
 ' ###########  [Style-Color Sizes]                                        ###########
 ' ###########   Definition:  Total number of sizes possible for all       ###########
@@ -60,6 +85,16 @@ Sub CreateOnlineInstock()
 ' ###########                  FOR COLOR BISN ENABLED > 0                 ###########
 ' ###########                - COLOR SKU is in region's Top 25 SKUs       ###########
 ' ###########                                                             ###########
+' ########### -------------------------------------                       ###########
+' ########### ACCOUNTING FOR MULTIPLE PSRS PER WEEK                       ###########
+' ########### -------------------------------------                       ###########
+' ########### The PSR reports are delivered at various times and          ###########
+' ########### intervals for each region. For any region that has more     ###########
+' ########### than one PSR per week, the smallest value across PSRs is    ###########
+' ########### reported for that region. The exception to this is Top 25   ###########
+' ########### Offline, which is the maximum value calculated for the      ###########
+' ########### week.                                                       ###########
+' ###########                                                             ###########
 ' ###################################################################################
 ' ###################################################################################
 ' ###################################################################################
@@ -68,7 +103,7 @@ Sub CreateOnlineInstock()
   Dim sizesForColorCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
   Dim sizesForColor As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
   Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, filePath As String
-  Dim PSRnames() As String, focusRegions() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
+  Dim PSRnames() As String, focusRegions() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
   Dim i As Integer, ii As Integer
   directoryLoc = "C:\Users\kkuramoto\Documents\Ad Hoc Analysis\Online Instock\v2\" 'Directory location with PSR files to be processed
   PSRfolder = "PSRs" 'Directory location with PSR files to be processed
@@ -116,6 +151,7 @@ Sub CreateOnlineInstock()
     filePath = directoryLoc & PSRfolder & Application.PathSeparator & PSRnames(i)
     PSRregion = Mid(PSRnames(i), 25, 2) 'region of PSR (from filename)
     PSRdate = DateSerial(Mid(PSRnames(i), 32, 4), Mid(PSRnames(i), 30, 2), Mid(PSRnames(i), 28, 2)) 'date of PSR (from filename)
+    weekStart = PSRdate - (Weekday(PSRdate, vbMonday) -1)
 
     inFocusRegions = Filter(focusRegions, PSRregion)
     If UBound(inFocusRegions) < 0 Then
@@ -161,8 +197,10 @@ Sub CreateOnlineInstock()
           sizesOrderable = sizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
           sizesBisn = sizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
           inTopSkus = Filter(topSkus, PSRsheet.Cells(ii, colorSkuCol).Value)  '  Compare SKU to region's Top 25 list
-          If UBound(inTopSkus) >= 0 Then  '  If on Top 25 list, then
-            topOfflineCount = topOfflineCount - 1  '  Decrease the count of Top 25 Style-Colors offline
+          If UBound(inTopSkus) >= 0 Then  '  If on Top 25 list...
+            If PSRsheet.Cells(ii, sizesOrderableCol).Value - PSRsheet.Cells(ii, sizesBisnCol).Value > 0 Then  '  And orderable is not BISN, then...
+              topOfflineCount = topOfflineCount - 1  '  Decrease the count of Top 25 Style-Colors offline
+            End If
             topSizesForColor = topSizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  '  Sum # SIZES FOR COLOR
             topSizesOrderable = topSizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
             topSizesBisn = topSizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
@@ -171,21 +209,23 @@ Sub CreateOnlineInstock()
       Next ii
       '*** Populate Data sheet ***
       With dataSheet.Cells(1, 1)
-        .Offset(0, 0).Value = "Date"
-        .Offset(0, 1).Value = "Region"
-        .Offset(0, 2).Value = "Style-Color Sizes"
-        .Offset(0, 3).Value = "Overall Instock %"
-        .Offset(0, 4).Value = "Top 25 Instock %"
-        .Offset(0, 5).Value = "Top 25 Offline"
+        .Offset(0, 0).Value = "Week Start"
+        .Offset(0, 1).Value = "Report Date"
+        .Offset(0, 2).Value = "Region"
+        .Offset(0, 3).Value = "Style-Color Sizes"
+        .Offset(0, 4).Value = "Overall Instock %"
+        .Offset(0, 5).Value = "Top 25 Instock %"
+        .Offset(0, 6).Value = "Top 25 Offline"
       End With
       lastDataRow = dataSheet.Cells(dataSheet.Rows.Count, "A").End(xlUp).Row
       With dataSheet.Cells(lastDataRow + 1, 1)
-        .Offset(0, 0).Value = PSRdate
-        .Offset(0, 1).Value = PSRregion
-        .Offset(0, 2).Value = sizesForColor
-        .Offset(0, 3).Value = (sizesOrderable - sizesBisn) / sizesForColor
-        .Offset(0, 4).Value = (topSizesOrderable - topSizesBisn) / topSizesForColor
-        .Offset(0, 5).Value = topOfflineCount
+        .Offset(0, 0).Value = weekStart
+        .Offset(0, 1).Value = PSRdate
+        .Offset(0, 2).Value = UCase(PSRregion)
+        .Offset(0, 3).Value = Format(sizesForColor, "#,##0")
+        .Offset(0, 4).Value = Format((sizesOrderable - sizesBisn) / sizesForColor, "Percent")
+        .Offset(0, 5).Value = Format((topSizesOrderable - topSizesBisn) / topSizesForColor, "Percent")
+        .Offset(0, 6).Value = Format(topOfflineCount, "#,##0")
       End With
     End If
     '*** Move PSR report to archiveFolder ***
@@ -196,6 +236,7 @@ Sub CreateOnlineInstock()
   Next i
 
   '### Build charts ###
+
 
 End Sub
 
