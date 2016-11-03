@@ -11,9 +11,10 @@ Sub CreateOnlineInstock()
 ' ########### -------                                                     ###########
 ' ########### From a directory of ProductStatusReports calculate          ###########
 ' ########### the following for each Focus Region:                        ###########
-' ###########      ~ In-Stock % (Sum of # Sizes Salable / Sum of Sizes)   ###########
 ' ###########      ~ Total Sizes (Sum of Sizes Salable)                   ###########
-' ###########      ~ Top 25 In-Stock (Same as above, but for Top 25 SKUs) ###########
+' ###########      ~ In-Stock % (Sum of # Sizes Salable / Sum of Sizes)   ###########
+' ###########      ~ Top 25 In-Stock % (Same as above, but for Top 25     ###########
+' ###########        SKUs)                                                ###########
 ' ###########      ~ Top 25 Offline (Sum of SKUs in Top 25 offline)       ###########
 ' ###########                                                             ###########
 ' ########### ---------------------------                                 ###########
@@ -99,12 +100,13 @@ Sub CreateOnlineInstock()
 ' ###################################################################################
 ' ###################################################################################
 
-  Dim ws As Worksheet, top25Sheet As Worksheet, dataSheet As Worksheet, PSRsheet As Worksheet, lastDataRow As Integer, lastPSRrow As Integer, lastPSRcolumn As Integer
+  Dim wb As Workbook, ws As Worksheet, top25Sheet As Worksheet, dataSheet As Worksheet, PSRsheet As Worksheet, pivotSheet As Worksheet, graphSheet As Worksheet, lastDataRow As Integer, lastPSRrow As Integer, lastPSRcolumn As Integer
   Dim sizesForColorCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
   Dim sizesForColor As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
   Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, filePath As String
   Dim PSRnames() As String, focusRegions() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
-  Dim i As Integer, ii As Integer
+  Dim i As Integer, ii As Integer, dataRange As Range, cht As Chart, pts As Points, dl As DataLabel, seriesCnt As Integer
+  Set wb = ActiveWorkbook
   directoryLoc = "C:\Users\kkuramoto\Documents\Ad Hoc Analysis\Online Instock\v2\" 'Directory location with PSR files to be processed
   PSRfolder = "PSRs" 'Directory location with PSR files to be processed
   archiveFolder = "archive" 'Directory location to archive processed PSR files
@@ -113,18 +115,20 @@ Sub CreateOnlineInstock()
   Set top25Sheet = Sheets("Top 25")
   Set dataSheet = Sheets("Data")
   Set PSRsheet = Sheets("PSR")
+  Set pivotSheet = Sheets("Tables")
+  Set graphSheet = Sheets("Graphs")
 
   Application.ScreenUpdating = False
   Application.DisplayAlerts = False
 
   ' #### Clear sheets ####
   For Each ws In Worksheets
-  '     If ws <> dataSheet Then ' Add exceptions here
-          With ws.Cells
-              .Clear
-              .ClearFormats
-          End With
-      ' End If
+    If ws.Name <> pivotSheet.Name And ws.Name <> graphSheet.Name Then ' Add exceptions here !!!! dataSheet before release !!!!
+      With ws.Cells
+        .Clear
+        .ClearFormats
+      End With
+    End If
   Next
   Set ws = Nothing
 
@@ -235,8 +239,54 @@ Sub CreateOnlineInstock()
     PSRsheet.Cells.Clear
   Next i
 
-  '### Build charts ###
+  '### Update Pivot Tables and Pivot Charts ###
+  Set dataRange = dataSheet.Range("A1", dataSheet.Range("G" & lastDataRow))
+  With pivotSheet.PivotTables("pvtSizes").PivotCache
+    .SourceData = dataRange.Address(True, True, xlR1C1, True)
+    .Refresh
+  End With
+  With pivotSheet.PivotTables("pvtAllInstock").PivotCache
+    .SourceData = dataRange.Address(True, True, xlR1C1, True)
+    .Refresh
+  End With
+  With pivotSheet.PivotTables("pvtTopInstock").PivotCache
+    .SourceData = dataRange.Address(True, True, xlR1C1, True)
+    .Refresh
+  End With
+  With pivotSheet.PivotTables("pvtOffline").PivotCache
+    .SourceData = dataRange.Address(True, True, xlR1C1, True)
+    .Refresh
+  End With
 
+  seriesCnt = cht.SeriesCollection.Count
+  Set cht = graphSheet.ChartObjects("chtSizes").Chart
+  For i = 1 to seriesCnt
+    cht.SeriesCollection(i).ApplyDataLabels Type:=xlDataLabelsShowNone
+    Set pts = cht.SeriesCollection(i).Points
+    pts(pts.Count).ApplyDataLabels ShowSeriesName:=True
+  Next i
+  Set cht = graphSheet.ChartObjects("chtAllInstock").Chart
+  For i = 1 to seriesCnt
+    cht.SeriesCollection(i).ApplyDataLabels Type:=xlDataLabelsShowNone
+    Set pts = cht.SeriesCollection(i).Points
+    pts(pts.Count).ApplyDataLabels ShowSeriesName:=True
+  Next i
+  Set cht = graphSheet.ChartObjects("chtTopInstock").Chart
+  For i = 1 to seriesCnt
+    cht.SeriesCollection(i).ApplyDataLabels Type:=xlDataLabelsShowNone
+    Set pts = cht.SeriesCollection(i).Points
+    pts(pts.Count).ApplyDataLabels ShowSeriesName:=True
+  Next i
+  Set cht = graphSheet.ChartObjects("chtOffline").Chart
+  For i = 1 to seriesCnt
+    cht.SeriesCollection(i).ApplyDataLabels Type:=xlDataLabelsShowNone
+    Set pts = cht.SeriesCollection(i).Points
+    pts(pts.Count).ApplyDataLabels ShowSeriesName:=True
+    With cht.SeriesCollection(i).DataLabels
+      .Orientation = xlUpward
+      .Font.Size = 8
+    End With
+  Next i
 
 End Sub
 
