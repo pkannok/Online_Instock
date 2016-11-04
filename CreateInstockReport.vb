@@ -103,7 +103,7 @@ Sub CreateOnlineInstock()
   Dim wb As Workbook, ws As Worksheet, top25Sheet As Worksheet, dataSheet As Worksheet, PSRsheet As Worksheet, pivotSheet As Worksheet, graphSheet As Worksheet, lastDataRow As Integer, lastPSRrow As Integer, lastPSRcolumn As Integer
   Dim sizesForColorCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
   Dim sizesForColor As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
-  Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, filePath As String
+  Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, reportName As String, filePath As String
   Dim PSRnames() As String, focusRegions() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
   Dim i As Integer, ii As Integer, dataRange As Range, cht As Chart, pts As Points, dl As DataLabel, seriesCnt As Integer
   Set wb = ActiveWorkbook
@@ -112,6 +112,7 @@ Sub CreateOnlineInstock()
   archiveFolder = "archive" 'Directory location to archive processed PSR files
   top25Folder = "top25"
   top25Csv = "top25.csv"
+  reportName = "Instock Report"
   Set top25Sheet = Sheets("Top 25")
   Set dataSheet = Sheets("Data")
   Set PSRsheet = Sheets("PSR")
@@ -123,7 +124,7 @@ Sub CreateOnlineInstock()
 
   ' #### Clear sheets ####
   For Each ws In Worksheets
-    If ws.Name <> pivotSheet.Name And ws.Name <> graphSheet.Name Then ' Add exceptions here !!!! dataSheet before release !!!!
+    If ws.Name <> pivotSheet.Name And ws.Name <> graphSheet.Name And ws.Name <> dataSheet.Name Then ' Add exceptions here
       With ws.Cells
         .Clear
         .ClearFormats
@@ -233,33 +234,25 @@ Sub CreateOnlineInstock()
       End With
     End If
     '*** Move PSR report to archiveFolder ***
-    ' Name filePath As directoryLoc & archiveFolder & Application.PathSeparator & PSRnames(i)
+    Name filePath As directoryLoc & archiveFolder & Application.PathSeparator & PSRnames(i)
 
     '*** Clear PSR data from PSR sheet ***
     PSRsheet.Cells.Clear
   Next i
 
-  '### Update Pivot Tables and Pivot Charts ###
-  Set dataRange = dataSheet.Range("A1", dataSheet.Range("G" & lastDataRow))
-  With pivotSheet.PivotTables("pvtSizes").PivotCache
-    .SourceData = dataRange.Address(True, True, xlR1C1, True)
-    .Refresh
-  End With
-  With pivotSheet.PivotTables("pvtAllInstock").PivotCache
-    .SourceData = dataRange.Address(True, True, xlR1C1, True)
-    .Refresh
-  End With
-  With pivotSheet.PivotTables("pvtTopInstock").PivotCache
-    .SourceData = dataRange.Address(True, True, xlR1C1, True)
-    .Refresh
-  End With
-  With pivotSheet.PivotTables("pvtOffline").PivotCache
-    .SourceData = dataRange.Address(True, True, xlR1C1, True)
-    .Refresh
-  End With
+  Call KillConnections
 
-  seriesCnt = cht.SeriesCollection.Count
+  '### Update Pivot Tables and Pivot Charts ###
+  lastDataRow = dataSheet.Cells(dataSheet.Rows.Count, "A").End(xlUp).Row
+  Set dataRange = dataSheet.Range("A1", dataSheet.Range("G" & lastDataRow))
+
+  pivotSheet.PivotTables("pvtSizes").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
+  pivotSheet.PivotTables("pvtAllInstock").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
+  pivotSheet.PivotTables("pvtTopInstock").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
+  pivotSheet.PivotTables("pvtOffline").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
+
   Set cht = graphSheet.ChartObjects("chtSizes").Chart
+  seriesCnt = cht.SeriesCollection.Count
   For i = 1 to seriesCnt
     cht.SeriesCollection(i).ApplyDataLabels Type:=xlDataLabelsShowNone
     Set pts = cht.SeriesCollection(i).Points
@@ -288,6 +281,27 @@ Sub CreateOnlineInstock()
     End With
   Next i
 
+  '### Export PDF of Graphs and Save ###
+  filePath = directoryLoc & reportName & " - " & Format(Application.WorksheetFunction.Max(dataSheet.Range("A:A")), "mmddyyyy")
+  graphSheet.ExportAsFixedFormat _
+    Type:=xlTypePDF, _
+    Filename:=filePath, _
+    Quality:=xlQualityStandard, _
+    IncludeDocProperties:=True, _
+    IgnorePrintAreas:=False, _
+    OpenAfterPublish:=False
+
+    wb.Save
+
+End Sub
+
+Sub KillConnections()
+    Dim i As Integer
+    For i = 1 To ActiveWorkbook.Connections.Count
+    If ActiveWorkbook.Connections.Count = 0 Then Exit Sub
+    ActiveWorkbook.Connections.Item(i).Delete
+    i = i - 1
+    Next i
 End Sub
 
 Function AllFilesinDirectory(folderLoc As String) As String()
