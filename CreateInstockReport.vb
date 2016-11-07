@@ -104,7 +104,7 @@ Sub CreateOnlineInstock()
   Dim sizesForColorCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
   Dim sizesForColor As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
   Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, reportName As String, filePath As String
-  Dim PSRnames() As String, focusRegions() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
+  Dim PSRnames() As String, focusRegions() As String, archiveNames() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
   Dim i As Integer, ii As Integer, dataRange As Range, cht As Chart, pts As Points, dl As DataLabel, seriesCnt As Integer
   Set wb = ActiveWorkbook
   directoryLoc = "C:\Users\kkuramoto\Documents\Ad Hoc Analysis\Online Instock\v2\" 'Directory location with PSR files to be processed
@@ -149,95 +149,103 @@ Sub CreateOnlineInstock()
       focusRegions(i) = top25Sheet.Cells(1, i).Value
   Next i
 
+  filePath = directoryLoc & archiveFolder & Application.PathSeparator
+  archiveNames = AllFilesinDirectory(filePath) 'Array of previously processed PSR filenames
   filePath = directoryLoc & PSRfolder & Application.PathSeparator
   PSRnames = AllFilesinDirectory(filePath) 'Array of PSR filenames to be processed
 
   For i = LBound(PSRnames) To UBound(PSRnames)
-    filePath = directoryLoc & PSRfolder & Application.PathSeparator & PSRnames(i)
-    PSRregion = Mid(PSRnames(i), 25, 2) 'region of PSR (from filename)
-    PSRdate = DateSerial(Mid(PSRnames(i), 32, 4), Mid(PSRnames(i), 30, 2), Mid(PSRnames(i), 28, 2)) 'date of PSR (from filename)
-    weekStart = PSRdate - (Weekday(PSRdate, vbMonday) -1)
-
-    inFocusRegions = Filter(focusRegions, PSRregion)
-    If UBound(inFocusRegions) < 0 Then
-      ' ### Skip processing / do nothing ###
+    ' ### Check if file has already been processed - Delete if True ###
+    If UBound(Filter(archiveNames, PSRnames(i))) >= 0 Then
+      SetAttr filePath & PSRnames(i), vbNormal
+      Kill (filePath & PSRnames(i))
     Else
-      '### Import each report ###
-      With PSRsheet.QueryTables.Add(Connection:="TEXT;" & filePath, Destination:=PSRsheet.Range("A1"))
-        .TextFileParseType = xlDelimited
-        .TextFileCommaDelimiter = True
-        .BackgroundQuery = True
-        .TablesOnlyFromHTML = False
-        .Refresh BackgroundQuery:=False
-        .SaveData = True
-      End With
+      filePath = directoryLoc & PSRfolder & Application.PathSeparator & PSRnames(i)
+      PSRregion = Mid(PSRnames(i), 25, 2) 'region of PSR (from filename)
+      PSRdate = DateSerial(Mid(PSRnames(i), 32, 4), Mid(PSRnames(i), 30, 2), Mid(PSRnames(i), 28, 2)) 'date of PSR (from filename)
+      weekStart = PSRdate - (Weekday(PSRdate, vbMonday) -1)
 
-      '*** Set top 25 for region
-      For ii = 1 To 25
-        topSkus(ii) = top25Sheet.Cells(1, top25Sheet.Range("1:1").Find(What:=PSRregion, LookIn:=xlValues).Column).Offset(ii, 0).Value
-      Next ii
+      inFocusRegions = Filter(focusRegions, PSRregion)
+      If UBound(inFocusRegions) < 0 Then
+        ' ### Skip processing / do nothing ###
+      Else
+        '### Import each report ###
+        With PSRsheet.QueryTables.Add(Connection:="TEXT;" & filePath, Destination:=PSRsheet.Range("A1"))
+          .TextFileParseType = xlDelimited
+          .TextFileCommaDelimiter = True
+          .BackgroundQuery = True
+          .TablesOnlyFromHTML = False
+          .Refresh BackgroundQuery:=False
+          .SaveData = True
+        End With
 
-      '*** Identify columns by header ***
-      lastPSRrow = PSRsheet.Cells(PSRsheet.Rows.Count, "A").End(xlUp).Row
-      lastPSRcolumn = PSRsheet.Cells(1, PSRsheet.Columns.Count).End(xlToLeft).Column
-      colorSkuCol = PSRsheet.Range("1:1").Find(What:="COLOR SKU", LookIn:=xlValues).Column
-      sizesForColorCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR", LookIn:=xlValues).Column
-      sizesOrderableCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR ORDERABLE", LookIn:=xlValues).Column
-      sizesBisnCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR BISN ENABLED", LookIn:=xlValues).Column
-      variationMasterCol = PSRsheet.Range("1:1").Find(What:="VARIATION MASTER ONLINE", LookIn:=xlValues).Column
+        '*** Set top 25 for region
+        For ii = 1 To 25
+          topSkus(ii) = top25Sheet.Cells(1, top25Sheet.Range("1:1").Find(What:=PSRregion, LookIn:=xlValues).Column).Offset(ii, 0).Value
+        Next ii
 
-      '*** Reset variable values ***
-      sizesForColor = 0
-      sizesOrderable = 0
-      sizesBisn = 0
-      topSizesForColor = 0
-      topSizesOrderable = 0
-      topSizesBisn = 0
-      topOfflineCount = 25
+        '*** Identify columns by header ***
+        lastPSRrow = PSRsheet.Cells(PSRsheet.Rows.Count, "A").End(xlUp).Row
+        lastPSRcolumn = PSRsheet.Cells(1, PSRsheet.Columns.Count).End(xlToLeft).Column
+        colorSkuCol = PSRsheet.Range("1:1").Find(What:="COLOR SKU", LookIn:=xlValues).Column
+        sizesForColorCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR", LookIn:=xlValues).Column
+        sizesOrderableCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR ORDERABLE", LookIn:=xlValues).Column
+        sizesBisnCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR BISN ENABLED", LookIn:=xlValues).Column
+        variationMasterCol = PSRsheet.Range("1:1").Find(What:="VARIATION MASTER ONLINE", LookIn:=xlValues).Column
 
-      '*** Sum data columns ***
-      For ii = 2 to lastPSRrow
-        If PSRsheet.Cells(ii, variationMasterCol).Value = "YES" Then  'Do not sum if VARATION MASTER ONLINE <> "YES"
-          sizesForColor = sizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  'Sum # SIZES FOR COLOR
-          sizesOrderable = sizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
-          sizesBisn = sizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
-          inTopSkus = Filter(topSkus, PSRsheet.Cells(ii, colorSkuCol).Value)  '  Compare SKU to region's Top 25 list
-          If UBound(inTopSkus) >= 0 Then  '  If on Top 25 list...
-            If PSRsheet.Cells(ii, sizesOrderableCol).Value - PSRsheet.Cells(ii, sizesBisnCol).Value > 0 Then  '  And orderable is not BISN, then...
-              topOfflineCount = topOfflineCount - 1  '  Decrease the count of Top 25 Style-Colors offline
+        '*** Reset variable values ***
+        sizesForColor = 0
+        sizesOrderable = 0
+        sizesBisn = 0
+        topSizesForColor = 0
+        topSizesOrderable = 0
+        topSizesBisn = 0
+        topOfflineCount = 25
+
+        '*** Sum data columns ***
+        For ii = 2 to lastPSRrow
+          If PSRsheet.Cells(ii, variationMasterCol).Value = "YES" Then  'Do not sum if VARATION MASTER ONLINE <> "YES"
+            sizesForColor = sizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  'Sum # SIZES FOR COLOR
+            sizesOrderable = sizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
+            sizesBisn = sizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
+            inTopSkus = Filter(topSkus, PSRsheet.Cells(ii, colorSkuCol).Value)  '  Compare SKU to region's Top 25 list
+            If UBound(inTopSkus) >= 0 Then  '  If on Top 25 list...
+              If PSRsheet.Cells(ii, sizesOrderableCol).Value - PSRsheet.Cells(ii, sizesBisnCol).Value > 0 Then  '  And orderable is not BISN, then...
+                topOfflineCount = topOfflineCount - 1  '  Decrease the count of Top 25 Style-Colors offline
+              End If
+              topSizesForColor = topSizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  '  Sum # SIZES FOR COLOR
+              topSizesOrderable = topSizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
+              topSizesBisn = topSizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
             End If
-            topSizesForColor = topSizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  '  Sum # SIZES FOR COLOR
-            topSizesOrderable = topSizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
-            topSizesBisn = topSizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
           End If
-        End If
-      Next ii
-      '*** Populate Data sheet ***
-      With dataSheet.Cells(1, 1)
-        .Offset(0, 0).Value = "Week Start"
-        .Offset(0, 1).Value = "Report Date"
-        .Offset(0, 2).Value = "Region"
-        .Offset(0, 3).Value = "Style-Color Sizes"
-        .Offset(0, 4).Value = "Overall Instock %"
-        .Offset(0, 5).Value = "Top 25 Instock %"
-        .Offset(0, 6).Value = "Top 25 Offline"
-      End With
-      lastDataRow = dataSheet.Cells(dataSheet.Rows.Count, "A").End(xlUp).Row
-      With dataSheet.Cells(lastDataRow + 1, 1)
-        .Offset(0, 0).Value = weekStart
-        .Offset(0, 1).Value = PSRdate
-        .Offset(0, 2).Value = UCase(PSRregion)
-        .Offset(0, 3).Value = Format(sizesForColor, "#,##0")
-        .Offset(0, 4).Value = Format((sizesOrderable - sizesBisn) / sizesForColor, "Percent")
-        .Offset(0, 5).Value = Format((topSizesOrderable - topSizesBisn) / topSizesForColor, "Percent")
-        .Offset(0, 6).Value = Format(topOfflineCount, "#,##0")
-      End With
-    End If
-    '*** Move PSR report to archiveFolder ***
-    Name filePath As directoryLoc & archiveFolder & Application.PathSeparator & PSRnames(i)
+        Next ii
+        '*** Populate Data sheet ***
+        With dataSheet.Cells(1, 1)
+          .Offset(0, 0).Value = "Week Start"
+          .Offset(0, 1).Value = "Report Date"
+          .Offset(0, 2).Value = "Region"
+          .Offset(0, 3).Value = "Style-Color Sizes"
+          .Offset(0, 4).Value = "Overall Instock %"
+          .Offset(0, 5).Value = "Top 25 Instock %"
+          .Offset(0, 6).Value = "Top 25 Offline"
+        End With
+        lastDataRow = dataSheet.Cells(dataSheet.Rows.Count, "A").End(xlUp).Row
+        With dataSheet.Cells(lastDataRow + 1, 1)
+          .Offset(0, 0).Value = weekStart
+          .Offset(0, 1).Value = PSRdate
+          .Offset(0, 2).Value = UCase(PSRregion)
+          .Offset(0, 3).Value = Format(sizesForColor, "#,##0")
+          .Offset(0, 4).Value = Format((sizesOrderable - sizesBisn) / sizesForColor, "Percent")
+          .Offset(0, 5).Value = Format((topSizesOrderable - topSizesBisn) / topSizesForColor, "Percent")
+          .Offset(0, 6).Value = Format(topOfflineCount, "#,##0")
+        End With
+      End If
+      '*** Move PSR report to archiveFolder ***
+      Name filePath As directoryLoc & archiveFolder & Application.PathSeparator & PSRnames(i)
 
-    '*** Clear PSR data from PSR sheet ***
-    PSRsheet.Cells.Clear
+      '*** Clear PSR data from PSR sheet ***
+      PSRsheet.Cells.Clear
+    End If
   Next i
 
   Call KillConnections
