@@ -11,7 +11,7 @@ Sub CreateOnlineInstock()
 ' ########### -------                                                     ###########
 ' ########### From a directory of ProductStatusReports calculate          ###########
 ' ########### the following for each Focus Region:                        ###########
-' ###########      ~ Total Sizes (Sum of Sizes Salable)                   ###########
+' ###########      ~ Total Color SKUs (Count of Color-Skus)               ###########
 ' ###########      ~ In-Stock % (Sum of # Sizes Salable / Sum of Sizes)   ###########
 ' ###########      ~ Top 25 In-Stock % (Same as above, but for Top 25     ###########
 ' ###########        SKUs)                                                ###########
@@ -49,7 +49,7 @@ Sub CreateOnlineInstock()
 ' ########### DEFINITION OF METRICS                                       ###########
 ' ########### ---------------------                                       ###########
 ' ########### Metrics are defined and calculated as follows:              ###########
-' ###########  [Style-Color Sizes]                                        ###########
+' ###########  [Style-Color Count]                                        ###########
 ' ###########   Definition:  Total number of sizes possible for all       ###########
 ' ###########                style-color SKUs/colorways.                  ###########
 ' ###########   Calculation: For each item where:                         ###########
@@ -102,7 +102,7 @@ Sub CreateOnlineInstock()
 
   Dim wb As Workbook, ws As Worksheet, top25Sheet As Worksheet, dataSheet As Worksheet, PSRsheet As Worksheet, pivotSheet As Worksheet, graphSheet As Worksheet, lastDataRow As Integer, lastPSRrow As Integer, lastPSRcolumn As Integer
   Dim sizesForColorCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
-  Dim sizesForColor As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
+  Dim sizesForColor As Long, colorSkuCount As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
   Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, reportName As String, filePath As String
   Dim PSRnames() As String, focusRegions() As String, archiveNames() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
   Dim i As Integer, ii As Integer, dataRange As Range, cht As Chart, pts As Points, dl As DataLabel, seriesCnt As Integer
@@ -197,6 +197,7 @@ Sub CreateOnlineInstock()
         sizesForColor = 0
         sizesOrderable = 0
         sizesBisn = 0
+        colorSkuCount = 0
         topSizesForColor = 0
         topSizesOrderable = 0
         topSizesBisn = 0
@@ -209,6 +210,9 @@ Sub CreateOnlineInstock()
             sizesOrderable = sizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
             sizesBisn = sizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
             inTopSkus = Filter(topSkus, PSRsheet.Cells(ii, colorSkuCol).Value)  '  Compare SKU to region's Top 25 list
+            If PSRsheet.Cells(ii, colorSkuCol).Value <> "N/A" Then ' Count of Color-Skus that are not N/A (accessories)
+              colorSkuCount = colorSkuCount + 1
+            End If
             If UBound(inTopSkus) >= 0 Then  '  If on Top 25 list...
               If PSRsheet.Cells(ii, sizesOrderableCol).Value - PSRsheet.Cells(ii, sizesBisnCol).Value > 0 Then  '  And orderable is not BISN, then...
                 topOfflineCount = topOfflineCount - 1  '  Decrease the count of Top 25 Style-Colors offline
@@ -220,21 +224,21 @@ Sub CreateOnlineInstock()
           End If
         Next ii
         '*** Populate Data sheet ***
-        With dataSheet.Cells(1, 1)
-          .Offset(0, 0).Value = "Week Start"
-          .Offset(0, 1).Value = "Report Date"
-          .Offset(0, 2).Value = "Region"
-          .Offset(0, 3).Value = "Style-Color Sizes"
-          .Offset(0, 4).Value = "Overall Instock %"
-          .Offset(0, 5).Value = "Top 25 Instock %"
-          .Offset(0, 6).Value = "Top 25 Offline"
-        End With
+        ' With dataSheet.Cells(1, 1)
+        '   .Offset(0, 0).Value = "Week Start"
+        '   .Offset(0, 1).Value = "Report Date"
+        '   .Offset(0, 2).Value = "Region"
+        '   .Offset(0, 3).Value = "Style-Color Count"
+        '   .Offset(0, 4).Value = "Overall Instock %"
+        '   .Offset(0, 5).Value = "Top 25 Instock %"
+        '   .Offset(0, 6).Value = "Top 25 Offline"
+        ' End With
         lastDataRow = dataSheet.Cells(dataSheet.Rows.Count, "A").End(xlUp).Row
         With dataSheet.Cells(lastDataRow + 1, 1)
           .Offset(0, 0).Value = weekStart
           .Offset(0, 1).Value = PSRdate
           .Offset(0, 2).Value = UCase(PSRregion)
-          .Offset(0, 3).Value = Format(sizesForColor, "#,##0")
+          .Offset(0, 3).Value = Format(colorSkuCount, "#,##0")
           .Offset(0, 4).Value = Format((sizesOrderable - sizesBisn) / sizesForColor, "Percent")
           .Offset(0, 5).Value = Format((topSizesOrderable - topSizesBisn) / topSizesForColor, "Percent")
           .Offset(0, 6).Value = Format(topOfflineCount, "#,##0")
@@ -254,12 +258,12 @@ Sub CreateOnlineInstock()
   lastDataRow = dataSheet.Cells(dataSheet.Rows.Count, "A").End(xlUp).Row
   Set dataRange = dataSheet.Range("A1", dataSheet.Range("G" & lastDataRow))
 
-  pivotSheet.PivotTables("pvtSizes").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
+  pivotSheet.PivotTables("pvtColors").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
   pivotSheet.PivotTables("pvtAllInstock").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
   pivotSheet.PivotTables("pvtTopInstock").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
   pivotSheet.PivotTables("pvtOffline").ChangePivotCache wb.PivotCaches.Create(SourceType:=xlDatabase, SourceData:=dataRange, Version:=xlPivotTableVersion14)
 
-  Set cht = graphSheet.ChartObjects("chtSizes").Chart
+  Set cht = graphSheet.ChartObjects("chtColors").Chart
   seriesCnt = cht.SeriesCollection.Count
   For i = 1 to seriesCnt
     cht.SeriesCollection(i).ApplyDataLabels Type:=xlDataLabelsShowNone
