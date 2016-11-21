@@ -11,7 +11,8 @@ Sub CreateOnlineInstock()
 ' ########### -------                                                     ###########
 ' ########### From a directory of ProductStatusReports calculate          ###########
 ' ########### the following for each Focus Region:                        ###########
-' ###########      ~ Total Color SKUs (Count of Color-Skus)               ###########
+' ###########      ~ Total Color SKUs Sizes (Count of Color-Skus sizes    ###########
+' ###########        less count of sizes offline)                         ###########
 ' ###########      ~ In-Stock % (Sum of # Sizes Salable / Sum of Sizes)   ###########
 ' ###########      ~ Top 25 In-Stock % (Same as above, but for Top 25     ###########
 ' ###########        SKUs)                                                ###########
@@ -49,12 +50,13 @@ Sub CreateOnlineInstock()
 ' ########### DEFINITION OF METRICS                                       ###########
 ' ########### ---------------------                                       ###########
 ' ########### Metrics are defined and calculated as follows:              ###########
-' ###########  [Style-Color Count]                                        ###########
+' ###########  [Style-Color Sizes]                                        ###########
 ' ###########   Definition:  Total number of sizes possible for all       ###########
 ' ###########                style-color SKUs/colorways.                  ###########
 ' ###########   Calculation: For each item where:                         ###########
 ' ###########                - VARIATION MASTER ONLINE = YES              ###########
-' ###########                Sum(# SIZES FOR COLOR)                       ###########
+' ###########                (Sum(# SIZES FOR COLOR)                      ###########
+' ###########                 Less: Sum(# SIZES FOR COLOR OFFLINE))       ###########
 ' ###########                                                             ###########
 ' ###########  [Overall Instock %]                                        ###########
 ' ###########   Definition:  The total number of sizes salable divided by ###########
@@ -101,7 +103,7 @@ Sub CreateOnlineInstock()
 ' ###################################################################################
 
   Dim wb As Workbook, ws As Worksheet, top25Sheet As Worksheet, dataSheet As Worksheet, PSRsheet As Worksheet, pivotSheet As Worksheet, graphSheet As Worksheet, lastDataRow As Integer, lastPSRrow As Integer, lastPSRcolumn As Integer
-  Dim sizesForColorCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
+  Dim sizesForColorCol As Integer, sizesOfflineCol As Integer, sizesOrderableCol As Integer, sizesBisnCol As Integer, variationMasterCol As Integer
   Dim sizesForColor As Long, colorSkuCount As Long, sizesOrderable As Long, sizesBisn As Long, topSizesForColor As Long, topSizesOrderable As Long, topSizesBisn As Long, topOfflineCount As Integer
   Dim directoryLoc As String, PSRfolder As String, archiveFolder As String, top25Folder As String, top25Csv As String, reportName As String, filePath As String
   Dim PSRnames() As String, focusRegions() As String, archiveNames() As String, focusRegionCount As Integer, PSRregion As String, PSRdate As Date, weekStart As Date, inFocusRegions As Variant, topSkus(1 To 25) As String, inTopSkus As Variant
@@ -189,6 +191,7 @@ Sub CreateOnlineInstock()
         lastPSRcolumn = PSRsheet.Cells(1, PSRsheet.Columns.Count).End(xlToLeft).Column
         colorSkuCol = PSRsheet.Range("1:1").Find(What:="COLOR SKU", LookIn:=xlValues).Column
         sizesForColorCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR", LookIn:=xlValues).Column
+        sizesOfflineCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR OFFLINE", LookIn:=xlValues).Column
         sizesOrderableCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR ORDERABLE", LookIn:=xlValues).Column
         sizesBisnCol = PSRsheet.Range("1:1").Find(What:="# SIZES FOR COLOR BISN ENABLED", LookIn:=xlValues).Column
         variationMasterCol = PSRsheet.Range("1:1").Find(What:="VARIATION MASTER ONLINE", LookIn:=xlValues).Column
@@ -206,7 +209,7 @@ Sub CreateOnlineInstock()
         '*** Sum data columns ***
         For ii = 2 to lastPSRrow
           If PSRsheet.Cells(ii, variationMasterCol).Value = "YES" Then  'Do not sum if VARATION MASTER ONLINE <> "YES"
-            sizesForColor = sizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  'Sum # SIZES FOR COLOR
+            sizesForColor = sizesForColor + (PSRsheet.Cells(ii, sizesForColorCol).Value - PSRsheet.Cells(ii, sizesOfflineCol).Value)  'Sum # SIZES FOR COLOR less # SIZES FOR COLOR OFFLINE
             sizesOrderable = sizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
             sizesBisn = sizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
             inTopSkus = Filter(topSkus, PSRsheet.Cells(ii, colorSkuCol).Value)  '  Compare SKU to region's Top 25 list
@@ -217,7 +220,7 @@ Sub CreateOnlineInstock()
               If PSRsheet.Cells(ii, sizesOrderableCol).Value - PSRsheet.Cells(ii, sizesBisnCol).Value > 0 Then  '  And orderable is not BISN, then...
                 topOfflineCount = topOfflineCount - 1  '  Decrease the count of Top 25 Style-Colors offline
               End If
-              topSizesForColor = topSizesForColor + PSRsheet.Cells(ii, sizesForColorCol).Value  '  Sum # SIZES FOR COLOR
+              topSizesForColor = topSizesForColor + (PSRsheet.Cells(ii, sizesForColorCol).Value - PSRsheet.Cells(ii, sizesOfflineCol).Value)  '  Sum # SIZES FOR COLOR less # SIZES FOR COLOR OFFLINE
               topSizesOrderable = topSizesOrderable + PSRsheet.Cells(ii, sizesOrderableCol).Value  ' Sum # SIZES FOR COLOR ORDERABLE
               topSizesBisn = topSizesBisn + PSRsheet.Cells(ii, sizesBisnCol).Value  '  Sum # SIZES FOR COLOR BISN ENABLED
             End If
